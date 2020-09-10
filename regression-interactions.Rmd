@@ -1,0 +1,35 @@
+# Quick look at interaction terms in multivariate regression models
+
+This example is motivated by one of the examples in the Johns Hopkins
+University's Data Science Specialization (Regression Models course).
+
+## Research question
+With the mtcars dataset, fit a model that predicts mpg using the interaction
+between the number of cylinders (as factor) and weight.
+
+## Fit model
+```{r}
+fit <- with(mtcars, lm(mpg ~ wt * factor(cyl)))
+```
+
+## Plot
+```{r}
+# plot data with three lines, each isolating a single cyl
+
+ggplot(mtcars, aes(x=wt,y=mpg)) + geom_point(aes(color=factor(cyl))) +
+    # cyl = 4
+    geom_abline(intercept = coef(fit)[1], slope=coef(fit)[2]) +
+    # cyl = 6
+    geom_abline(intercept = coef(fit)[1] + coef(fit)[3], slope = coef(fit)[2] + coef(fit)[5]) +
+    # cyl = 8
+    geom_abline(intercept = coef(fit)[1] + coef(fit)[4], slope = coef(fit)[2] + coef(fit)[6])
+```
+
+## Compare with simpler model that doesn't include interaction
+```{r}
+fit2 <- with(mtcars, lm(mpg ~ wt + factor(cyl)))
+
+anova(fit,fit2)
+```
+
+P-value > 0.05, conclude the interaction term doesn't add anything.
