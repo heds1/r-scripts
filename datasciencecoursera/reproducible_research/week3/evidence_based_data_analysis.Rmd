@@ -1,0 +1,105 @@
+# Replication and reproducibility
+
+## Replication
+- focuses on the validity of the scientific claim
+- 'is this claim true?'
+- the ultimate standard for strengthening scientific evidence
+- new investigators, data, analytical methods, laboratories, instruments, etc.
+- particularly important in studies that can impact broad policy or regulatory
+  decisions
+
+## Reproducibility
+- focuses on the validity of the data analysis
+- 'can we trust this analysis?'
+- arguably a minimum standard for any scientific study
+- new investigators, same data, same methods
+- important when replication is impossible
+
+## Background and underlying trends
+- some studies cannot be replicated: no time, money, unique/opportunistic
+- technology is increasing data collection throughput; data are more complex and
+  high-dimensional
+- existing databases can be merged to become bigger databases (but the data are
+  used off-label)
+- computing power allows more sophisticated analyses, even on 'small' data
+- for every field 'X' there is a 'Computational X'
+
+## The result?
+- even basic analyses are difficult to describe
+- heavy computational requirements are thrust upon people without adequate
+  training in statistics and computing
+- errors are more easily introduced into long analysis pipelines
+- knowledge transfer is inhibited
+- results are difficult to replicate or reproduce
+- complicated analyses cannot be trusted
+
+## What problem does reproducibility solve?
+- what we get:
+    - transparency
+    - data availability
+    - software/methods availability
+    - improved transfer of knowledge
+
+- what we do NOT get:
+    - validity/correctness of the analysis
+
+- an analysis can be reproducible and still be wrong
+- we want to know 'can we trust this analysis?'
+- does requiring reproducibility deter bad analysis? perhaps not
+
+## Problems with reproducibility
+The premise of reproducible research is that with data/code available, people
+can check each other and the whole system is self-correcting
+- addresses the most 'downstream' aspect of the research process:
+  post-publication
+- assumes everyone plays by the same rules and wants to achieve the same goals
+  (i.e., scientific discovery)
+
+## Who reproduces research?
+- for reproducibility to be efefective as a means to check validity, someone
+  needs to do something
+  - rerun the analysis; check results match
+  - check the code for bugs/errors
+  - try alternate approaches; check sensitivity
+- the need for someone to do something is inherited from traditional notion of
+  replication
+- who is 'someone' and what are their goals?
+
+## The story so far
+- reproducibility brings transparency (wrt code + data) and increased transfer
+  of knowledge
+- a lot of discussion about how to get people to share data
+- key question of 'can we trust this analysis?' is not addressed by
+  reproducibility
+- reproducibility addresses potential problems long after they've occurred
+  ('downstream')
+- secondary analyses are inevitably coloured by the interests/motivations of
+  others
+
+## Evidence-based data analysis
+- most data analyses involve stringing together many different tools and methods
+- some methods may be standard for a given field, but others are often applied
+  ad hoc
+- we should apply thoroughly studied (via statistical research), mutually
+  agreed-upon methods to analyse data whenever possible
+- there should be evidence to justify the application of a given method
+
+- create analytic pipelines from evidence-based components: standardize it
+- a Deterministic Statistical Machine http://goo.gl/Qvlhuv
+- once an evidence-based analytic pipeline is established, we shouldn't mess
+  with it
+- analysis with a 'transparent box'
+- reduce the 'researcher degrees of freedom'
+- analogous to a prespecified clinical trial protocol
+
+## Summary
+- reproducible research is important, but doesn't necessarily solve the critical
+  question of whether a data analysis is trustworthy
+- reproducible research focuses on the most 'downstream' aspect of research
+  dissemination
+- evidence-based data analysis would provide standardized, best practices for
+  given scientific areas and questions
+- gives reviewers an important tool without dramatically increasing the burden
+  on them
+- more effort should be put into improving the quality of 'upstream' aspects of
+  scientific research

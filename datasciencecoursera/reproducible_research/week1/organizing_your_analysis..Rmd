@@ -1,0 +1,54 @@
+# Organizing your analysis
+
+## Data analysis files
+- Data
+  - raw data
+  - processed data
+- Figures
+  - exploratory figures
+  - final figures
+- R code
+  - raw/unused scripts
+  - final scripts
+  - R markdown files
+- Text
+  - README files
+  - text of analysis/report
+
+## Raw data
+- should be stored in your analysis folder
+- if accessed from the web, include url, description, and data accessed in
+README
+
+## Processed data
+- processed data should be named so it's easy to see which script generated
+the data
+- the processing script--processed data mapping should occur in the README
+- processed data should be tidy
+
+## Raw scripts
+- may be less commented (but comments help you)
+- may be multiple versions
+- may include analyses that are later discarded
+
+## Final scripts
+- clearly commented: small comments liberally - what, when, why, how; bigger
+commented blocks for whose sections
+- include processing details
+- only analyses that appear in the final writeup
+
+## R Markdown files can be used to generate reproducible reports
+- text and R code are integrated
+- very easy to create in RStudio
+
+## README files
+- not necessary if you use R Markdown
+- should contain step-by-step instructions for analysis
+
+## Text for the document
+- should include title, intro (motivation), methods (stats you used),
+results (including measures of uncertainty), and conclusions (including
+potential problems)
+- it should tell a story
+- it should NOT include every analysis you performed
+- references should be included for statistical methods

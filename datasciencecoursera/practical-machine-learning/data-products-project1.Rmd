@@ -1,0 +1,23 @@
+---
+title: "R Markdown and Leaflet - Course Project 1"
+author: "Hedley Stirrat"
+date: "4 June 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Quakes
+The `quakes` dataset gives the locations of 1000 earthquakes around Fiji since 1964.
+
+```{r cars}
+library(leaflet)
+
+pal <- colorNumeric("Accent", domain = quakes$mag)
+
+leaflet(quakes) %>%
+    addTiles() %>%
+    addCircleMarkers(lat = ~ lat, lng = ~ long, fillOpacity = 0.1, stroke = FALSE)
+```

@@ -1,0 +1,32 @@
+
+---
+title: "Title"
+output: html_document
+---
+
+Cool RMarkdown File
+===================
+
+Let's load some data.
+
+```{r}
+library(datasets)
+data(airquality)
+summary(airquality)
+```
+
+
+Let's first make a pairs plot of the data.
+
+```{r}
+pairs(airquality)
+```
+
+Here's a regression model of ozone on wind, solar radiation and temperature.
+
+```{r}
+library(stats)
+fit <- lm(Ozone ~ Wind + Solar.R + Temp, data = airquality)
+summary(fit)
+```
+

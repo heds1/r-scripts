@@ -1,0 +1,133 @@
+# Reproducible Research: Course Project 1
+
+## Load libraries and preprocess the data
+```{r}
+library(dplyr, warn.conflicts=FALSE)
+library(tidyr)
+library(ggplot2)
+
+df <- read.csv('activity.csv') %>%
+    mutate(date = as.Date(date, format="%Y-%m-%d"))
+```
+
+## Mean total number of steps per day
+### 1. Histogram of total number of steps per day
+```{r}
+df %>%
+    drop_na() %>%
+    ggplot(aes(x = date, y = steps)) +
+        geom_col() +
+        labs(x = 'Date', y = 'Number of steps')
+```
+
+### 2. Mean and median totals
+```{r}
+df %>%
+    drop_na() %>%
+    group_by(date) %>%
+    summarise(
+        steps = sum(steps)) %>%
+    ungroup() %>%
+    summarise(
+        mean_steps = mean(steps),
+        median_steps = median(steps))
+```
+
+## Average daily activity pattern
+### 1. Timeseries plot
+```{r}
+df %>%
+    group_by(interval) %>%
+    summarise(
+        mean_steps = mean(steps, na.rm=TRUE)) %>%
+    ggplot(aes(x = interval, y = mean_steps)) +
+        geom_line() + 
+        labs(x = 'Time interval', y = 'Mean number of steps')
+```
+
+### 2. Which 5-minute interval contains the maximum mean number of steps?
+```{r}
+df %>%
+    group_by(interval) %>%
+    summarise(
+        mean_steps = mean(steps, na.rm=TRUE)) %>%
+        top_n(n=1)
+```
+
+## Imputing missing values
+### 1. Calculate the total number of missing values
+```{r}
+sum(is.na(df))
+```
+
+### 2/3. Fill in missing values
+Strategy for filling in missing values is to use the mean value for that
+five-minute interval.
+```{r}
+# create reference data
+interval_mean_steps <- df %>%
+    group_by(interval) %>%
+    summarise(
+        mean_steps = mean(steps, na.rm=TRUE))
+
+# loop over df to find rows where is.na(steps)==TRUE. 
+# for those rows, get the interval value, but that into
+# the reference data to find the row containing the relevant
+# value of mean_steps for that interval, and insert that into
+# the imputed df.
+
+imputed_df <- df
+
+for (row in 1:nrow(imputed_df)) {
+    if (is.na(imputed_df[row, 'steps'])) {
+        interval <- imputed_df[row, 'interval']
+        new_row <- which(interval_mean_steps$interval==interval)
+        mean_steps <- interval_mean_steps[new_row, 'mean_steps']
+        imputed_df[row, 'steps'] <- mean_steps
+    }
+}
+```
+
+### 4. Histogram of total number of steps taken each day with imputed data, with mean and median numbers per day reported
+```{r}
+imputed_df %>%
+    ggplot(aes(x = date, y = steps)) +
+        geom_col() +
+        labs(x = 'Date', y = 'Number of steps')
+
+imputed_df %>%
+    group_by(date) %>%
+    summarise(
+        steps = sum(steps)) %>%
+    ungroup() %>%
+    summarise(
+        mean_steps = mean(steps),
+        median_steps = median(steps))
+```
+Conclusion: This imputation approach made virtually no difference to the mean
+and median steps per day (which is intuitive, given that the imputation just
+used the mean values for a given interval). The main difference is that the
+histogram appears more 'filled in', i.e., there are fewer days with all or nearly all missing
+values (and hence low step counts).
+
+## Are there differences in activity patterns between weekdays and weekends?
+### 1. Mutate the data
+```{r}
+daytype_df <- imputed_df %>%
+    mutate(
+        daytype = case_when(
+            weekdays(date) %in% unique(weekdays(imputed_df$date))[1:5] ~ 'Weekday',
+            TRUE ~ 'Weekend')) 
+```
+
+### 2. Facet plot
+```{r}
+daytype_df %>%
+    group_by(daytype, interval) %>%
+    summarise(
+        mean_steps = mean(steps, na.rm=TRUE)) %>%
+    ggplot(aes(x = interval, y = mean_steps)) +
+        geom_line() +
+        labs(x = 'Time interval', y = 'Mean number of steps') +
+        facet_wrap(~ daytype)
+```

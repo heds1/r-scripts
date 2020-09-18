@@ -1,0 +1,27 @@
+# Communicating results
+
+## tl;dr
+- people are busy, especially managers and leaders
+- results of data analyses are sometimes presented in oral form, but often the
+  first cut is presented via email
+  - it is often useful to break down the results of an analysis into different
+    levels of granularity/detail
+
+## hierarchy of information: email presentation
+- subject line/sender info
+    - at a minimum; include one
+    - can you summarize findings in one sentence?
+- email body
+    - a brief description of the problem/context; recall what was proposed and
+      executed; summarize findings/results; 1-2 paragraphs
+    - if action needs to be taken as a result of the presentation, suggest some
+      options and make them as concrete as possible
+    - if questions need to be addressed, try to make them yes/no
+- attachments
+    - R Markdown file
+    - knitr report
+    - stay concise; don't spit out pages of code (because you used knitr we know
+      it's available)
+- links to supplementary materials
+    - code/software/data
+    - Github repo/project website

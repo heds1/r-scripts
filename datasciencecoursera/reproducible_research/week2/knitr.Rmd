@@ -1,0 +1,145 @@
+# Literate Statistical Programming
+- need a documentation language and a programming language
+- knitr supports a variety of documentation languages
+
+## How do I make my work reproducible?
+- decide to do it (ideally from the start)
+- keep track of things, perhaps with a version control system to track
+  snapshots/changes
+- use software whose operation can be coded
+- don't save output
+- save data in nonproprietary formats
+
+## Literate programming: Pros
+- text and code all in one place, logical order
+- data, results automatically updated to reflect external changes
+- code is live--automatic 'regression test' when building a document (e.g., if
+  you update the document, you'll know if you've broken something)
+
+## Literate programming: Cons
+- text and code all in one place; can make documents difficult to read,
+  especially if there is a lot of code
+- can substantially slow down processing of documents (although there are tools
+  to help)
+
+## What is knitr?
+- R package written by Yihui Xie
+- supports RMarkdown, LaTeX and HTML as documentation languages
+- can export to pdf, HTML
+- build right into RStudio
+
+## Requirements
+- a recent version of R
+- a text editor
+- some support packages from CRAN
+- some knowledge of Markdown, LaTeX or HTML
+
+## Markdown
+- a simplified version of 'markup' languages
+- no special editor required
+- simple, intuitive formatting elements
+
+## What is knitr good for?
+- manuals
+- short/medium-length technical documents
+- tutorials
+- reports (especially if generated periodically)
+- data preprocessing documents/summaries
+
+## What is knitr not good for?
+- very long research articles
+- complex time-consuming computations
+- documents that require precise formatting
+
+## In R itself...
+```{r}
+library(knitr)
+knit2html('document.Rmd')
+browseURL('document.html')
+```
+
+## A few notes
+- knitr will fill a new document with filler text; delete it
+- code chunks begin with ```{r} and end with ```
+- all R code goes in between these markers
+- code chunks can have names, which is useful when we start making graphics
+```{r firstchunk}
+### R code here
+```
+- by default, code in a code chunk is echoed, which means it'll print the
+  results of the computation (if there are results to print)
+
+## Processing of knitr documents
+- you write the RMarkdown doc (.Rmd)
+- knitr produces a Markdown doc (.md)
+- knitr converts the Markdown doc into HTML (by default)
+- .Rmd --> .md --> .html
+- you should not edit or save the .md or .html documents until you are finished
+
+## Ex
+- to not output the code, echo=FALSE
+```{r name, echo=FALSE}```
+
+- to not show the results, results="hide"
+```{r name, results="hide"}```
+
+- inline text computations
+```{r computetime, echo=FALSE}
+time <- format(Sys.time(), "%a %b %d %X %Y")
+rand = rnorm(1)
+```
+The current time is `r time`. My favourite random number is `r rand`.
+
+- incorporating graphics
+Let's first simulate some data.
+```{r simulatedata,echo=TRUE}
+x <- rnorm(100); y <- x + rnorm(100, sd=0.5)
+```{r}
+Here is a scatterplot of the data.
+```{r scatterplot,fig.height=4}
+par(mar = c(5,4,1,1), las=1)
+plot(x,y,main='My simulated data')
+```{r}
+
+- making tables with xtable
+```{r fitmodel}
+library(datasets)
+data(airquality)
+fit <- lm(Ozone ~ Wind + Temp + Solar.R, data=airquality)
+```
+Here is a table of regression coefficients.
+```{r showtable, results='asis'}
+library(xtable)
+xt <- xtable(summary(fit))
+print(xt, type='html')
+```
+
+## Setting global options
+- sometimes we want to set options for every code chunk that are different from
+  the default options
+- e.g., we may want to suppress all code echoing and results output
+- we have to write some code to set these global options
+```{r setoptions,echo=FALSE}
+opts_chunk$set(echo=FALSE, results="hide")
+```
+
+## Some common options
+- output
+  - results: 'asis', 'hide'
+  - echo: TRUE, FALSE
+- figures
+  - fig.height: numeric
+  - fig.width: numeric
+
+## Caching computations
+- what if one chunk takes a long time to run?
+- all chunks have to be recomputed every time you reknit the file
+- the cache=TRUE option can be set on a chunk-by-chunk basis to store results of
+  computation
+- after the first run, results are loaded from cache
+
+## Caching caveats
+- if the data or code (or anything external) changes, you need to rerun the
+  cached code chunks
+- dependencies are not checked explicitly
+- chunks with significant side effects may not be cacheable

@@ -1,0 +1,747 @@
+---
+title: "Predictive Text Modelling: Exploratory Data Analysis and Milestone Report"
+author: "Hedley Stirrat"
+date: "04/07/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The aim of this project is to build a predictive text model. Given a series of
+words forming part of a sentence, the model should predict the next word.
+
+The training and testing data were pulled from three sources: Twitter, news
+websites and blog websites. This report outlines the data import and cleaning
+steps, along with an exploratory data analysis of the available data.
+
+## Data import
+
+Data were downloaded from
+[the repository](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip)
+(17 June 2020), and extracted into a working directory. The three .txt files were read into R. The blogs dataset
+was the smallest with just under 900,000 observations, while the Twitter dataset was the largest
+with over two million observations.
+
+```{r cache = FALSE, message = FALSE, warning = FALSE}
+library(readr)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(stringi)
+library(stringr)
+library(helprs) # install.github("heds1/helprs")
+library(quanteda)
+quanteda_options(threads = 16)
+
+base_dir <- "C:/Users/hls/code/datasciencecoursera/capstone/"
+
+dat_twitter <- data.frame(
+    Text = read_lines(paste0(base_dir, "/data/en_US.twitter.txt")),
+    Source = "twitter")
+dat_blogs <- data.frame(
+    Text = read_lines(paste0(base_dir, "/data/en_US.blogs.txt")),
+    Source = "blogs")
+dat_news <- data.frame(
+    Text = read_lines(paste0(base_dir, "/data/en_US.news.txt")),
+    Source = "news")
+
+nrow(dat_twitter)
+nrow(dat_blogs)
+nrow(dat_news)
+```
+
+As may be expected, the Twitter entries tended to have fewer characters, while the 
+news and blog entries had a similar, higher number of characters on average, with a 
+long tail toward higher character numbers.
+
+```{r cache = TRUE}
+bind_rows(
+    data.frame(
+        Characters = unlist(lapply(dat_twitter$Text, nchar)),
+        Source = "Twitter"),
+    data.frame(
+        Characters = unlist(lapply(dat_blogs$Text, nchar)),
+        Source = "Blogs"),
+    data.frame(
+        Characters = unlist(lapply(dat_news$Text, nchar)),
+        Source = "News")) %>%
+    ggplot(aes(x = Source, y = Characters)) +
+        geom_violin() +
+        ylim(0, 1000) +
+        ggtitle("Characters per observation by source") +
+        theme(plot.title = element_text(hjust = 0.5))
+```
+
+To keep memory usage within usable limits, a random sample of 100,000 observations
+was taken from each dataset and combined to form the working dataset. 
+
+```{r cache = TRUE}
+df <- bind_rows(
+    dat_twitter %>%
+        slice_sample(n = 100000),
+    dat_blogs %>%
+        slice_sample(n = 100000),
+    dat_news %>%
+        slice_sample(n = 100000)) 
+
+rm(dat_twitter, dat_blogs, dat_news)
+```
+
+## Data cleaning
+
+Before subsampling, the combined dataset comprised over four million
+rows, each row corresponding to a single observation (that is, a tweet,
+a blog entry or a news article).
+
+A random selection of 10 rows of data are displayed below. It's clear that the data
+are drawn from a wide swath of the internet and will require several cleaning steps
+to reach a state from which a predictive text model will be able to be founded on.
+
+```{r}
+kable(slice_sample(df, n = 10))
+```
+
+The initial data cleaning comprised the following actions:
+
+- convert all characters to lowercase
+- convert non-ASCII characters where possible
+- remove URLs with regex, including `https`-style URLs, `bit.ly`-style URLs, and simple URLs containing `.com`.
+- remove extra whitespace
+
+```{r cache = TRUE}
+df <- df %>%
+    # convert all to lowercase
+    mutate(Text = tolower(Text)) %>%
+
+    # convert non-ascii chr
+    mutate(Text = stri_trans_general(Text, "latin-ascii")) %>%
+
+    # remove URLs
+    mutate(Text = gsub("\\s?(http)\\S*\\s?", " ", Text, ignore.case = TRUE)) %>%
+
+    # remove .com (sometimes no URL is given)
+    mutate(Text = gsub("\\s?\\S*(.com)\\S*\\s?", " ", Text, ignore.case = TRUE)) %>%
+
+    # remove bit.ly URLs
+    mutate(Text = gsub("\\s?\\S*(bit.ly)\\S*\\s?", " ", Text, ignore.case = TRUE)) %>%
+
+    # remove extra whitespace
+    mutate(Text = gsub("\\s+", " ", Text)) 
+```
+
+After this initial cleaning, the data were split into training and testing sets
+with a ratio of 3:1, and written out as csv files for subsequent data exploration
+and model building.
+
+```{r cache = TRUE}
+split_data <- df %>%
+    split_sets(props = c(0.75, 0.25))
+
+glimpse(split_data[['train']])
+glimpse(split_data[['test']])
+
+write.csv(split_data[['train']], paste0(base_dir, "data/training-cleaned.csv"), row.names = FALSE)
+
+write.csv(split_data[['test']], paste0(base_dir, "data/testing-cleaned.csv"), row.names = FALSE)
+
+rm(df)
+```
+
+The training and testing datasets, therefore, comprised approximately 225,000
+and 75,000 observations, respectively.
+
+## Further exploration and text analysis
+
+The quanteda R package was used for textual analysis. Initial data exploration was
+conducted on the training dataset. The training corpus was created, and the head of the summary
+of the resulting corpus is shown below. Each observation contained several types,
+split into several tokens comprising at least one sentence.
+The observation source (Twitter, news or blog) was also brought through.
+
+```{r cache = TRUE}
+training_corpus <- corpus(split_data[['train']], text_field = 'Text')
+
+kable(head(summary(training_corpus)))
+```
+
+Following this, tokens were created from the training corpus. A series of data-cleaning
+parameters were applied to the tokenisation function, including `remove_numbers = TRUE`,
+`remove_punct = TRUE`, `remove_symbols = TRUE`, `remove_url = TRUE` and `split_hyphens = TRUE`.
+
+```{r cache = TRUE}
+training_tokens <- tokens(training_corpus,
+    remove_numbers = TRUE,
+    remove_punct = TRUE,
+    remove_symbols = TRUE,
+    remove_url = TRUE,
+    what = "word",
+    split_hyphens = TRUE,
+    include_docvars = TRUE)
+```
+
+N-grams were created from the tokens, with length 2--5. The n-grams were then
+transformed into document-frequency matrices (DFMs), which were trimmed by removing terms
+that appeared fewer than three times. An example of the structure of the DFMs is
+shown below for n = 1.
+
+```{r cache = TRUE}
+dfm_list <- list()
+
+for (i in 1:5) {
+
+    # generate ngrams of length i
+    these_ngrams <- tokens_ngrams(training_tokens, i)
+
+    # construct dfm, setting stem to false as input will not be stemmed
+    this_dfm <- dfm(these_ngrams, tolower = TRUE, stem = FALSE)
+
+    # trim dfm by removing ngrams appearing fewer than 3 times
+    this_dfm_trimmed <- dfm_trim(this_dfm,
+        min_termfreq = 3,
+        termfreq_type = "count")
+
+    # append to dfm_list
+    dfm_list[[i]] <- this_dfm_trimmed
+
+    # clear env
+    rm(these_ngrams, this_dfm, this_dfm_trimmed)
+
+}
+
+head(dfm_list[[1]])
+```
+
+To get a quick idea of the distribution of words, we can use the DFM for
+the tokens where n = 1. There are approximately 50,000 words identified.
+We extract all words and their counts, group by count, and get an idea of the
+distribution of words in the dataset.
+
+```{r cache = TRUE}
+length(dfm_list[[1]]@Dimnames$features)
+
+# get all word counts
+words <- topfeatures(dfm_list[[1]], length(dfm_list[[1]]))
+
+words_df <- data.frame(
+    Word = names(words),
+    NumWordAppearances = words) %>%
+    group_by(NumWordAppearances) %>%
+    summarise(Frequency = n())
+
+head(words_df)
+tail(words_df)
+
+rm(words)
+```
+
+We can see that words that appear only three times (the minimum, given our 
+data trimming) appear the most, followed by words that appear only four times,
+and so on. Conversely, words that appear several times (typical stop words such
+as "the", "a", etc.) have unique frequencies as their appearances rise to very high
+numbers.
+
+To explore this further, we obtain the top twenty words from the unigram DFM. We 
+divide these numbers by the total number of observations to get an idea of the
+proportion of observations that these top words are found in:
+
+```{r cache = TRUE}
+unigram_top_twenty <- topfeatures(dfm_list[[1]], 20) 
+
+kable(data.frame(
+    Word = names(unigram_top_twenty),
+    AppearancesPerObservation = unigram_top_twenty / length(dfm_list[[1]]@Dimnames$docs),
+    row.names = NULL))
+
+rm(unigram_top_twenty)
+```
+
+On average, "the" appears about 1.5 times per document; "to" appears
+about 0.8 times per document; and so on.
+
+We then checked the number of n-grams for n = 1--5. The highest number of n-grams
+were found for n = 2 and n = 3, while frequency dropped off significantly for n = 4
+and n = 5.
+
+```{r cache = TRUE}
+for (i in 1:5) {
+
+    this_dfm <- dfm_list[[i]]
+
+    this_summary_df <- data.frame(
+        NgramLength = i,
+        NumberOfInstances = length(dfm_list[[i]]@Dimnames$features))
+
+    # append summary to single df
+    if (!exists('dfm_length_summary')) {
+        dfm_length_summary <- this_summary_df
+    } else {
+        dfm_length_summary <- bind_rows(dfm_length_summary, this_summary_df)
+    }
+}
+
+kable(dfm_length_summary)
+```
+
+To explore further the document-frequency matrices for n-grams of length 2--5, 
+the 10 top features from each DFM were extracted:
+
+```{r cache = TRUE}
+for (i in 2:5) {
+
+    this_dfm <- dfm_list[[i]]
+
+    # construct summary dataframe listing the top ten ngrams for length i
+    this_summary_df <- data.frame(
+        Ngram = names(topfeatures(this_dfm, 10)),
+        Count = topfeatures(this_dfm, 10),
+        Length = i)
+
+    # append summary to single df
+    if (!exists('dfm_summary')) {
+        dfm_summary <- this_summary_df
+    } else {
+        dfm_summary <- bind_rows(dfm_summary, this_summary_df)
+    }
+
+}  
+```
+
+The 10 top features from each DFM are plotted below. It should be noted that
+stopwords have not been removed from the tokens, so those short, common 
+words are reflected strongly in the summary plots. Since the input will not be 
+sanitised of these words, the model should not remove them either.
+
+```{r cache = TRUE}
+dfm_summary %>% 
+    mutate(Length = paste0(Length, "-gram")) %>%
+    ggplot(aes(x = Ngram, y = Count)) +
+        geom_col() +
+        coord_flip() +
+        facet_wrap(~ Length, scales = "free") +
+        ggtitle("Top 10 n-grams for each length of n") +
+        theme(plot.title = element_text(hjust = 0.5))
+```
+
+Using a similar strategy to the one above, we can estimate how many words
+we need in our dictionary to cover x% of all word use instances based on the 
+training set. Firstly, we construct a single dataframe containing all the unigram
+instances (words) in our training data. We can summarise this by comparing the number
+of unique words to the total number of words identified. From this, we see that
+our approximately 50,000 unique words appear over six million times in the training dataset:
+
+```{r cache = TRUE}
+# get all word counts
+words <- topfeatures(dfm_list[[1]], length(dfm_list[[1]]))
+
+words_df <- data.frame(
+    Word = names(words),
+    NumWordAppearances = words) 
+
+unique_words_summary <- words_df %>%
+    summarise(
+        UniqueWords = nrow(words_df),
+        TotalNumWords = sum(NumWordAppearances))
+
+unique_words_summary
+```
+
+In order to estimate how many words will need to be used in a dictionary
+that covers 50% of word instances in the training data, we arrange our current
+word dictionary by descending number of word instances, and cumulative sum
+down the table until we reach 50% of the number of word instances 
+identified above (6401343):
+
+```{r cache = TRUE}
+words_df %>%
+    mutate(CumulativeCoverage = cumsum(NumWordAppearances)) %>%
+    filter(CumulativeCoverage < unique_words_summary$TotalNumWords / 2) %>%
+    nrow(.)
+```
+
+Our most frequent 128 words will cover 50% of all word instances in the training dataset.
+
+We can run an analogous calculation to estimate the number of words required to generate
+a 90% coverage of word instances (i.e., coverage of `unique_words_summary$TotalNumWords * .9` = 
+5761209 word instances). We see that over 6000 words are required in a dictionary
+for this coverage:
+
+```{r cache = TRUE}
+words_df %>%
+    mutate(CumulativeCoverage = cumsum(NumWordAppearances)) %>%
+    filter(CumulativeCoverage < unique_words_summary$TotalNumWords * .9) %>%
+    nrow(.)
+```
+
+Note that these numbers would probably increase slightly if larger samples of the
+original datasets were obtained, as more unique words would likely be present
+in larger datasets. However, we need to operate under low-memory-load conditions,
+so the above analysis is considered appropriate for this use case.
+
+## Building a predictive model
+
+After the exploratory data analysis, we can be confident that the data
+have been cleaned and preprocessed to a point at which they can be used
+to create a predictive text model. The three sets of n-gram document-frequency
+matrices, spanning bi-grams to quad-grams, will be used to build a 
+naive back-off model based on ranking candidate predicted words by the
+frequency with which they appear as n-grams in the training dataset.
+
+In order to supply word predictions, we need a way of splitting up the
+n-grams into heads and tails; that is, the head is the word (or words) that
+comprise the beginning of the n-gram, and the tail is the final word (which
+forms the basis of prediction). In order to retrieve heads and tails for each
+n-gram, we define two functions: `get_head` and `get_tail`, which split a 
+character vector of length n (where n = number of words in n-gram) and 
+retrieve the appropriate elements.
+
+```{r cache = TRUE}
+get_head <- function(x) {
+
+        # get number of words in ngram
+    num_words <- length(x)
+
+    # every word but the last is the head--get number of head words
+    num_heads <- num_words - 1
+
+    # instantiate vector of head words
+    this_head <- c()
+
+    # gather all head words
+    for (i in 1:num_heads) {
+        this_head <- c(this_head, x[[i]])
+    }
+
+    return(paste(this_head, collapse = " "))
+}
+
+get_tail <- function(x) {
+
+    # get number of words in ngram
+    num_words <- length(x)
+    
+    # return the final word (the predicted word)
+    return(paste(x[[num_words]], collapse = " "))
+}
+```
+
+Next, we loop over our DFM list for each n-gram from n = 2--5, using
+`get_head` and `get_tail` to extract the relevant parts of the n-grams.
+From these, we create a dataframe containing variables Head (for the words
+comprising the head), Tail (for the predicted word), Count (for frequency 
+that this n-gram appeared in the training data) and Length (for n, i.e., 
+length of n-gram):
+
+```{r cache = TRUE}
+if (exists('feature_count_list')) rm(feature_count_list)
+feature_count_list <- list()
+
+if (exists('dfm_summary')) rm(dfm_summary)
+
+for (i in 2:5) {
+
+    # get ngram counts
+    ngrams <- topfeatures(dfm_list[[i]], n = length(dfm_list[[i]]@Dimnames$features))
+
+    # split ngrams up into words
+    ngrams_split <- str_split(names(ngrams), "_")
+
+    # get heads
+    my_heads <- unlist(lapply(ngrams_split, get_head))
+    
+    # get tails
+    my_tails <- unlist(lapply(ngrams_split, get_tail))
+
+    # create df of heads, tails and counts
+    ngrams_split_df <- data.frame(
+        Head = my_heads,
+        Tail = my_tails,
+        Count = ngrams,
+        Length = i,
+        check.names = FALSE)
+
+    # append to master dataframe
+    if (!exists("ngrams_reference")) {
+        ngrams_reference <- ngrams_split_df
+    } else {
+        ngrams_reference <- bind_rows(ngrams_reference, ngrams_split_df)
+    }
+}
+
+# write so we don't have to do this again
+# write.csv(ngrams_reference, paste0(base_dir, "data/ngrams-reference.csv"), row.names = FALSE)
+```
+
+Data were then subjected to add-one smoothing (where 1 is added to every word instance count).
+
+```{r}
+ngrams_reference <- ngrams_reference %>%
+    mutate(Count = Count + 1)
+```
+
+Minimal pre-processing of user input will be conducted. To prepare the input for
+word prediction, the following `prepare_input` function is used. This function
+returns a list of outputs, including the verbatim text input, the text input
+split into constituent words (for head/tail assignment), and the number of words in the
+input (to select the appropriate n-gram dictionary to query in the first instance).
+
+```{r}
+# prepare input for prediction
+prepare_input <- function(input) {
+
+    input <- tolower(input)
+    
+    # split by spaces into constituent words
+    split_input <- str_split(input, " ")
+
+    # get number of words in input
+    num_words <- length(split_input[[1]])
+
+    # get total string
+    complete_input <- paste(unlist(split_input),collapse = " ")
+
+    # return list of outputs
+    return(list(
+        complete_input = complete_input,
+        split_input = split_input,
+        num_words = num_words)
+    )
+
+}
+```
+
+Model prediction is conducted with the `get_hits` function. This simple approach
+takes an input argument that is the output of `prepare_input`. The constituent
+words of the input head are looked up in the reference dictionary for direct head matches.
+If more than four matches are found, the matches are sorted according to frequency
+of occurrence in the training data, with the most frequent word prediction
+forming the recommended word. If less than five hits are discovered, we reduce the
+n-gram length by 1, and query the reference dictionary again. 
+
+For example, with the user input "thank you so much", `prepare_input` 
+splits each word up, and recognises four words in the input. The first check of
+`get_hits` searches the reference dictionary for an exact match for "thank you so much".
+If fewer than five exact matches are found, we strip off the first word in the input.
+This gives us "you so much", a tri-gram. We then search the reference dictionary for
+this tri-gram. If fewer than five cumulative hits are found at this point, we then search for
+"so much".
+
+This process continues until either a) we have five hits, or b) we have run out of
+possible n-gram references.
+
+```{r}
+# predict
+get_hits <- function(input) {
+
+    hits_df <- ngrams_reference %>%
+        filter(Head == input$complete_input)
+
+    # instantiate vector of hits to return
+    hits_for_return <- c()
+
+    # check for complete match first, returning top 5 matches
+    if (nrow(hits_df) > 0) {
+
+        hits_df <- hits_df %>%
+            arrange(desc(Count))
+
+        # get predicted word(s)
+        hits_vector <- hits_df$Tail
+
+        hits_for_return <- c(hits_for_return, hits_vector)
+
+        # if we have five matches, return
+        if (length(hits_for_return) > 4) {
+            return(hits_for_return[1:5])
+        } 
+
+    } 
+    # if we have got to this point, we haven't got five matches! so let's check
+    # shorter ngrams
+
+    # get first word to construct ngram out of--start from 2 because the first
+    # attempt starts from 1
+    first_word_num <- 2
+
+    # repeat until we have five hits
+    while(nrow(hits_df) < 5) {
+
+        # get all word indices except for first word
+        word_indices <- first_word_num:input$num_words
+
+        # instantiate word string
+        words <- c()
+
+        # get all words
+        for (word in word_indices) {
+            words <- c(words, input$split_input[[1]][[word]])
+        }
+
+        # collapse into single string
+        words <- paste(words, collapse = " ")
+
+        # look for matches
+        hits_df <- ngrams_reference %>%
+            filter(Head == words)
+
+        # return hits if there are any
+        if (nrow(hits_df) > 0) {
+
+            hits_df <- hits_df %>%
+                arrange(desc(Count))
+
+            # get predicted word(s)
+            hits_vector <- hits_df$Tail
+
+            # concatenate these onto original hits
+            hits_for_return <- c(hits_for_return, hits_vector)
+
+            # remove duplicates
+            hits_for_return <- hits_for_return[!duplicated(hits_for_return)]
+
+            if (length(hits_for_return) > 4) {
+                return(hits_for_return[1:5])
+            } 
+
+        }
+
+        # if we've tried all available ngrams, return (otherwise our while
+        # loop will keep running!)
+        if (first_word_num == 4) {
+            return(hits_for_return)
+        }
+
+        # otherwise, increment to start looking at next word and repeat
+        # (i.e., look for a shorter ngram)
+        first_word_num <- first_word_num + 1
+
+    }
+}
+```
+
+Finally, we create a function that calls both `prepare_input` and `get_hits`. `predict_word`
+takes a user input and returns the word recommendation.
+
+```{r}
+predict_word <- function(provided_string) {
+    cleaned_input <- prepare_input(provided_string)
+    get_hits(cleaned_input)
+}
+```
+
+Let's run the example above; five matches are returned, with the most probable
+deemed the first match (the one with the highest count for the highest-order n-gram). In this
+case, our predicted word is "for":
+
+```{r}
+predict_word("thank you so much")
+```
+
+Another example:
+
+```{r}
+predict_word("how are you")
+```
+
+## Model evaluation
+
+The preliminary model was evaluated by reading in the testing data, and transforming
+it with the same quanteda workflow as described for the training data. In short, this
+included creating the corpus and tokenisation.
+
+```{r}
+testing <- read.csv(paste0(base_dir, "data/testing-cleaned.csv"))
+
+testing_corpus <- corpus(testing, text_field = 'Text')
+
+testing_tokens <- tokens(testing_corpus,
+    remove_numbers = TRUE,
+    remove_punct = TRUE,
+    remove_symbols = TRUE,
+    remove_url = TRUE,
+    what = "word",
+    split_hyphens = TRUE,
+    include_docvars = TRUE)
+```
+
+Two testing parameters were defined. `successful_top_prediction` counts the instances
+where the top predicted word matched the actual word, while `successful_top_five_prediction`
+counts the instances where the actual word was found in the top five predicted words.
+
+The tokens were tested in the context of each sentence. Sentences must be at least five
+words long, as the first predicted word was the fifth in the sentence, and the predictors
+were the first four words. Following each test, 1 was added to each word index, meaning the
+predicted word was word six, and the predictors were words 2--5.
+
+One hundred random tokens were selected from the testing set, and the test below was run.
+Note that no seed was set, so that further iterations of the model are not evaluated
+against the same test set to reduce the chance of overfitting the model.
+
+```{r}
+
+successful_top_prediction <- c()
+successful_top_five_prediction <- c()
+
+for (i in sample(1:length(testing_tokens), 100)) {
+
+    # get document
+    this_document <- testing_tokens[i][[1]]
+
+    # get number of words in doc
+    num_words <- length(this_document)
+
+    # instantiate start and end words
+    start_index <- 1
+    end_index <- 4
+    predict_index <- 5
+
+    # test until the predicted word is the last word in the doc
+    while(predict_index <= num_words) {
+
+        this_head <- paste(this_document[start_index:end_index], collapse = " ")
+        this_prediction <- predict_word(this_head)
+        actual_word <- this_document[predict_index]
+        successful_top_prediction <- c(
+            successful_top_prediction, ifelse(this_prediction[1] == actual_word, TRUE, FALSE)
+        )
+        successful_top_five_prediction <- c(
+            successful_top_five_prediction, ifelse(actual_word %in% this_prediction, TRUE, FALSE)
+        )
+
+        start_index <- start_index + 1
+        end_index <- end_index + 1
+        predict_index <- predict_index + 1
+    }
+}
+```
+
+The results are displayed below. As expected, the actual word was predicted more reliably
+when including the top five suggestions, and less reliably when only the top selection was
+put forward. The results of the top-one prediction are displayed below, showing that the correct
+word was predicted 17% of the time:
+
+```{r cache = TRUE}
+top_pred_results <- data.frame(
+    SuccessfulCount = sum(successful_top_prediction),
+    UnsuccessfulCount = length(successful_top_prediction) - sum(successful_top_prediction),
+    SuccessfulPercent = round(sum(successful_top_prediction) / length(successful_top_prediction) * 100, 1)
+)
+
+kable(top_pred_results)
+```
+
+The results of the top-five prediction are shown below, showing that the actual word was within
+the top five predicted words 30% of the time:
+
+```{r cache = TRUE}
+top_five_pred_results <- data.frame(
+    SuccessfulCount = sum(successful_top_five_prediction),
+    UnsuccessfulCount = length(successful_top_five_prediction) - sum(successful_top_five_prediction),
+    SuccessfulPercent = round(sum(successful_top_five_prediction) / length(successful_top_five_prediction) * 100, 1)
+)
+
+kable(top_five_pred_results)
+```

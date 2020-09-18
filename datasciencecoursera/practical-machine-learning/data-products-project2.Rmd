@@ -1,0 +1,19 @@
+---
+title: "R Markdown and Plotly - Course Project 2"
+author: "Hedley Stirrat"
+date: "4 June 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Iris
+The `iris` dataset gives measurements of characteristics of 50 flowers each from three species of iris.
+
+```{r message=FALSE, warning=FALSE}
+library(plotly)
+
+plot_ly(iris, y = ~Sepal.Length, color = ~ Species, type = "box")
+```

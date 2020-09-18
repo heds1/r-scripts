@@ -1,0 +1,62 @@
+---
+title: "Capstone"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r eval=FALSE, echo=FALSE}
+data_url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+temp <- tempfile()
+download.file(data_url, temp)
+test <- read.delim(unz(temp, "final/en_US/en_US.blogs.txt"), header=FALSE)
+```
+
+```{r}
+# for development, don't want to keep downloading it...
+dat_twitter_con <- file(paste0(getwd(), "/data/en_US.twitter.txt"), "r")
+dat_twitter <- read.delim(dat_twitter_con, header = FALSE)
+
+dat_blogs_con <- file(paste0(getwd(), "/data/en_US.blogs.txt"), "r")
+dat_blogs <- read.delim(dat_blogs_con, header = FALSE)
+
+dat_news_con <- file(paste0(getwd(), "/data/en_US.news.txt"), "r")
+dat_news <- read.delim(dat_news_con, header = FALSE)
+
+# stuff for quiz 1
+
+# probably better to use readr::read_lines...
+
+dat_twitter <- read_lines(paste0(getwd(), "/data/en_US.twitter.txt"))
+dat_blogs <- read_lines(paste0(getwd(), "/data/en_US.blogs.txt"))
+dat_news <- read_lines(paste0(getwd(), "/data/en_US.news.txt"))
+
+max(unlist(lapply(dat_twitter, nchar)))
+max(unlist(lapply(dat_blogs, nchar)))
+max(unlist(lapply(dat_news, nchar)))
+
+length(which(grepl("love", dat_twitter)))
+# [1] 90956
+
+length(which(grepl("hate", dat_twitter)))
+# [1] 22138
+
+dat_twitter[grep("biostats", dat_twitter)]
+
+dat_twitter[grep("A computer once beat me at chess, but it was no match for me at kickboxing", dat_twitter)]
+
+
+
+
+set.seed(100)
+dat <- split_sets(test)
+train <- as.data.frame(dat$train)
+
+
+readLines(con, 1000)
+"C:/Users/hls/code/datasciencecoursera/capstone/data"
+```
+

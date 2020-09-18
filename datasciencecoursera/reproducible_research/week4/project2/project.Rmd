@@ -1,0 +1,210 @@
+---
+title: "How severe weather events affect population health and the economy"
+author: Hedley Stirrat
+output: html_document
+---
+## Synopsis
+This report examines the effects of severe weather events on population health
+and the economy. We use the Storm Data dataset of the National Oceanic and Atmospheric Administration, comprising
+observations from 1950 to 2011 in the United States.
+Two primary questions are addressed in this report:
+
+1. Across the United States, which types of events are most harmful with respect
+to population health?
+
+2. Across the Unites States, which types of events have the greatest economic
+consequences?
+
+It was found that tornados have caused the greatest number of fatalities and
+injuries in the Unites States between 1950 and 2011. On the other hand, since
+the mid-1990s, floods have caused the most damage to property and crops,
+followed by hurricanes/typhoons and tornados.
+
+## Data processing
+- The data was accessed directly from
+`https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2`
+on 18 April, 2020. 
+
+### Load packages and read in data
+- After importing the data, we observe 902297 observations of 37
+variables
+- Return brief summaries of the `FATALITIES` and `INJURIES` variables
+- `PROPDMGEXP` and `CROPDMGEXP` variables appear to be modifiers that determine
+the multiplication to apply to `PROPDMG` and `CROPDMG`, respectively, to obtain
+the real numeric value. Check what type of values are present in these variables
+
+```{r}
+# load packages
+library(dplyr) # version 0.8.5
+library(ggplot2) # version 3.3.0
+library(lubridate) # version 1.7.4
+
+# read in data
+df <- read.csv('repdata_data_StormData.csv.bz2')
+
+# check dimensions
+dim(df)
+
+# summarise fatalities and injuries
+summary(df$FATALITIES)
+summary(df$INJURIES)
+
+# check for `PROPDMGEXP` and `CROPDMGEXP` values
+unique(df$PROPDMGEXP)
+unique(df$CROPDMGEXP)
+
+# see how many unique `EVTYPE` values there are
+length(unique(df$EVTYPE))
+```
+
+### Subset and transform data
+- Select only the relevant variables for this analysis
+- Convert `BGN_DATE` to a Date-type variable, add associated `Year` variable
+- Convert `PROPDMG` and `PROPDMGEXP` into a single PropertyDamage
+numeric variable, and apply an analogous transformation to `CROPDMG` and
+`CROPDMGEXP`
+- Combine `PropertyDamage` and `CropDamage` into a single `MonetaryLoss` variable
+- Convert all `EVTYPE` to upper case, so that they can be better grouped
+
+```{r}
+df <- df %>%
+    select(
+        BGN_DATE,
+        EVTYPE,
+        FATALITIES,
+        INJURIES,
+        PROPDMG,
+        PROPDMGEXP,
+        CROPDMG,
+        CROPDMGEXP) %>%
+    mutate(
+        BGN_DATE = as.Date(BGN_DATE, format = '%m/%d/%Y %H:%M:%S'),
+        Year = year(BGN_DATE),
+        PropertyDamage = case_when(
+            PROPDMGEXP == 'H' ~ PROPDMG * 100,
+            PROPDMGEXP == 'h' ~ PROPDMG * 100,
+            PROPDMGEXP == 'K' ~ PROPDMG * 1000,
+            PROPDMGEXP == 'k' ~ PROPDMG * 1000,
+            PROPDMGEXP == 'M' ~ PROPDMG * 1000000,
+            PROPDMGEXP == 'm' ~ PROPDMG * 1000000,
+            PROPDMGEXP == 'B' ~ PROPDMG * 1000000000,
+            PROPDMGEXP == 'b' ~ PROPDMG * 1000000000,
+            PROPDMGEXP == '' ~ PROPDMG,
+            TRUE ~ PROPDMG),
+        CropDamage = case_when(
+            CROPDMGEXP == 'H' ~ CROPDMG * 100,
+            CROPDMGEXP == 'h' ~ CROPDMG * 100,
+            CROPDMGEXP == 'K' ~ CROPDMG * 1000,
+            CROPDMGEXP == 'k' ~ CROPDMG * 1000,
+            CROPDMGEXP == 'M' ~ CROPDMG * 1000000,
+            CROPDMGEXP == 'm' ~ CROPDMG * 1000000,
+            CROPDMGEXP == 'B' ~ CROPDMG * 1000000000,
+            CROPDMGEXP == 'b' ~ CROPDMG * 1000000000,
+            TRUE ~ CROPDMG),
+        MonetaryLoss = PropertyDamage + CropDamage,
+        EVTYPE = toupper(EVTYPE))
+
+# converting to upper case has condensed the unique number of EVTYPE values
+length(unique(df$EVTYPE))
+```
+
+### Strategy for ranking event types
+- The questions of which event types are associated with higher number of
+fatalities and injuries, and worse economic consequences, could be addressed in
+a couple of different ways. We could look at the
+median or mean number of injuries and fatalities (or economic loss) per
+event type to find the events with the highest average consequences;
+alternatively, we could take the approach of finding the event types with the
+highest total number of injuries and fatalities (or economic loss).
+- In this
+report, we have chosen the second option. This is because there are around 900
+unique event types in the dataset, but the majority of these event types have
+only one, two or a few observations. Consider the following summary:
+
+```{r}
+df %>%
+    group_by(EVTYPE) %>%
+    summarise(EventTypeInstances = n()) %>%
+    ungroup %>%
+    group_by(EventTypeInstances) %>%
+    summarise(Frequency = n())
+```
+
+- There are 456 event types that occur only once in the data. Without filtering
+these out, mean and median calculations for event types could be misleading.
+Therefore, this analysis instead looks at summed instances of fatality and
+injury (and property/crop damage) to determine those events with the greatest consequences.
+
+
+## Results
+
+### Harm to population health: fatalities and injuries
+- To determine which types of storm events are associated with the highest
+number of injuries and fatalities, we group the data by event type, sum the
+number of injuries and fatalities per event type, take the ten highest
+categories, and plot these.
+- Figure 1 compares the ten event types with the highest summed fatalities in the US between 1950-2011, while Figure 2 compares the ten event types with the highest summed injuries. The 'Tornado' event type has caused the greatest total number of fatalities,
+and by a very large margin, the greatest number of injuries.
+
+```{r}
+df %>%
+    group_by(EVTYPE) %>%
+    summarise(total_fatalities = sum(FATALITIES)) %>%
+    arrange(desc(total_fatalities)) %>%
+    head(10) %>%
+    arrange(total_fatalities) %>%
+    mutate(Position = factor(EVTYPE, EVTYPE)) %>%
+    ggplot(aes(x = Position, y = total_fatalities)) +
+        geom_bar(stat='identity') +
+        coord_flip() +
+        ggtitle('Figure 1. Total fatalities per event type') +
+        labs(x = 'Event type', y = 'Total fatalities') + 
+        theme(plot.title = element_text(hjust = 0.5))
+
+df %>%
+    group_by(EVTYPE) %>%
+    summarise(total_injuries = sum(INJURIES)) %>%
+    arrange(desc(total_injuries)) %>%
+    head(10) %>%
+    arrange(total_injuries) %>%
+    mutate(Position = factor(EVTYPE, EVTYPE)) %>%
+    ggplot(aes(x = Position, y = total_injuries)) +
+        geom_bar(stat='identity') +
+        coord_flip() +
+        ggtitle('Figure 2. Total injuries per event type') +
+        labs(x = 'Event type', y = 'Total injuries') + 
+        theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Economic consequences: property and crop damage
+- When looking at financial data spanning several decades, it is important to
+take inflation into account. In this case, we have data spanning over six
+decades; a given dollar amount of crop or property damage in 1950 is
+significantly different in real terms to the same dollar amount in 2011. 
+- Instead of adjusting for inflation, it might be easier to simply remove a
+large portion of historical observations. Indeed, the number of observations per
+year remained relatively low up until the mid-1990s; by only using data from
+this period onward, we are comparing (relatively) like-for-like monetary losses.
+- The sum will be used instead of the mean or median, for reasons discussed
+above.
+- Figure 3 compares the ten event types with the highest summed crop and property damage consequences, in the US between 1996-2011. Floods have caused the most economic damage in the period investigated,
+followed by hurricanes/typhoons and storm surges.
+
+```{r}
+df %>% 
+    filter(Year > 1995) %>% 
+    group_by(EVTYPE) %>%
+    summarise(MonetaryLoss = sum(MonetaryLoss)) %>%
+    arrange(desc(MonetaryLoss)) %>%
+    head(10) %>%
+    arrange(MonetaryLoss) %>%
+    mutate(Position = factor(EVTYPE, EVTYPE)) %>%
+    ggplot(aes(x = Position, y = MonetaryLoss / 1000000)) +
+        geom_bar(stat='identity') +
+        coord_flip() +
+        ggtitle('Figure 3. Total property and crop damage per event type') +
+        labs(x = 'Event type', y = 'Total damage ($M USD)') + 
+        theme(plot.title = element_text(hjust = 0.5)) +
+        scale_y_continuous(labels = scales::comma)
+```
+

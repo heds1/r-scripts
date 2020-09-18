@@ -1,0 +1,103 @@
+# Reproducible research checklist
+
+## DO: start with good science
+- garbage in, garbage out
+- coherent, focused question simplifies many problems
+- working with good collaborators reinforces good practices
+- something that's interesting to you will (hopefully) motivate good habits
+
+## DON'T: do things by hand
+- editing spreadsheets of data to 'clean it up'
+    - removing outliers
+    - QA/QC
+    - validating
+- editing tables or figures (e.g., rounding, formatting)
+- downloading data from a website (clicking links in a web browser)
+- moving data around your computer; splitting/reformatting data files
+- "we're just going to do this once..."
+- things done by hand need to be precisely documented (this is harder than it
+  sounds)
+
+## DON'T: point and click
+- many data processing/statistical analysis packages have graphical user
+  interfaces
+- GUIs are convenient/intuitive but the actions you take with a GU can be
+  difficult for others to reproduce
+- some GUIs produce a log file or script which includes equivalent commands;
+  these can be saved for later examination
+- in general, be careful with data analysis software that is highly interactive;
+  ease of use can sometimes lead to nonreproducible analyses
+- other interactive software, such as text editors, are usually fine
+
+## DO: teach a computer
+- if something needs to be done as part of your analysis/investigation, try to
+  teach your computer to do it (even if you only need to do it once)
+- in order to give your computer instructions, you need to write down exactly
+  what you mean to do and how it should be done
+- teaching a computer almost guarantees reproducibility
+For example, by hand, you can
+1. go to the UCI machine learning reporitosry
+2. download the bike sharing dataset by clicking on the link to the data folder,
+   then clicking on the link to the zip file of the dataset, choosing 'save
+   linked file as', then saving it to a folder on your computer
+Or you could just ```download.file``` in R...
+- full URL is specified
+- name of file saved to local computer is specified
+- directory is specified
+- code can always be executed in R as long as link is available
+
+## DO: use some version control
+- slow things down
+- add changes in small chunks (don't just do one massive commit)
+- track/tag snapshots; revert to old versions
+- software like Github make it easy to publish results
+
+## DO: keep track of your software environment
+- if you work on a complex project involving many tools/datasets, the software
+  and computing environment can be critical for reproducing your analysis
+- computer architecture: CPU (Intel, AMD, ARM), GPUs
+- OS: Windows, Mac OS, Linux/Unix
+- software toolchain: compilers, interpreters, command shell, programming
+  languages, database backends, data analysis software
+- supporting software/infrastructure: libraries, R packages, dependencies
+- external dependencies: websites, data repositories, remote databases, software
+  repos
+- version numbers: ideally, for everything
+
+## DON'T: save output
+- avoid saving data analysis output (tables, figures, summaries, processed data,
+  etc.), except perhaps temporarily for efficiency purposes
+- if a stray output file cannot be easily connected with the means by which it
+  was created, then it is not reproducible
+- save the data + code that generated the output, rather than the output itself
+- intermediate files are okay as long as there is clear documentation of how
+  they were created
+
+## DO: set your seed
+- random number generators generate pseudorandom numbers based on an initial
+  seed (usually a number or set of numbers)
+- in R use ```set.seed()``` function to set the seed and specify the random
+  number generator to use
+- setting the seed allows for the stream of random numbers to be exactly
+  reproducible
+- whenever you generate random numbers for a nontrivial purpose, always set the
+  seed
+
+## DO: think about the entire pipeline
+- data analysis is a lengthy process; it is not just tables/figures/reports
+- raw data --> processed data --> analysis --> report
+- how you got to the end is just as important as the end itself
+- the more of the data analysis pipeline you can make reproducible, the better
+  for everyone
+
+## Summary: checklist
+- are we doing good science?
+- was any part of this analysis done by hand?
+    - if so, are those parts precisely documented?
+    - does the documentation match reality?
+- have we taught a computer to do as much as possible (i.e., coded)?
+- are we using a version control system?
+- have we documented our software environment?
+- have we saved any output that we cannot reconstruct from original data + code?
+- how far back in the analysis pipeline can we go before our results are no
+  longer (automatically) reproducible?

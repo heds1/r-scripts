@@ -1,0 +1,39 @@
+# 'markdown is a text-to-html conversion tool for web writers. markdown allows
+# you to write using an easy-to-read, easy-to-write plain text format, then
+# convert it to structurally valid xhtml (or html)' - john gruber
+
+#   - simplified version of markup languages
+#   - allows one to focus on writing as opposed to formatting
+#   - simple/minimal intuitive formatting elements
+#   - easily converted to valid html and other formats using existing tools
+
+# italics
+# *this text will appear italicized*
+
+# bold
+# **this is bold**
+
+# This is a primary heading
+## This is a secondary heading
+### This is a tertiary heading
+
+# unordered lists
+# - first item
+# - second item
+# - third item
+
+# ordered lists
+# 1. first item
+# 2. second item
+# 3. third item
+
+# links
+# [words](https://www.google.com)
+
+# advanced linking
+# this is the [first][1] link and this is the [second][2]
+# [1]: url 'first'
+# [2]: url 'second'
+
+# newlines require double space after end of a line
+

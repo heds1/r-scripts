@@ -1,0 +1,243 @@
+---
+title: "Predicting weightlifting form"
+subtitle: "Practical Machine Learning course project"
+author: "Hedley Stirrat"
+date: "1 June 2020"
+output:
+  html_document:
+    theme: readable
+    toc: true
+    toc_float: true
+---
+
+# Introduction
+
+The Weight Lifting Exercises Dataset was collected with the aim of predicting
+"how well" an activity was performed by the subject. Six participants were asked
+to perfrom a biceps curl in five different ways: according to specification
+(Class A), with elbows to the front (Class B), only lifting the dumbbell halfway
+(Class C), only lowering the dumbbell halfway (Class D), and throwing the hips
+to the front (Class E). Class A corresponds to the "correct" way of performing
+the lift, while Classes B--E correspond to common mistakes.
+
+The authors fitted sensors to the participants' belts, gloves, armbands and dumbbells, 
+and recorded inertial measurement units, which provided acceleration, gyrometer
+and magnetometer data in three axes. Data were grouped into sliding windows of
+0.5--2.5 seconds. In each window, eight summary features, such as mean and variance, 
+were calculated for each of the four sensors, generating 96 derived features.
+
+In this report, we outline the creation of a predictive model to classify lifts
+into their true categories (i.e., Classes A--E). The final model was a random forest
+classification model that was trained with 10-fold cross-validation on 20 variables.
+The overall accuracy was just under 99%.
+
+# Setup
+
+In this section, we load the relevant R packages, read in the data, and briefly
+examine it. 
+
+```{r message=FALSE, warning=FALSE}
+library(caret)
+library(dplyr)
+library(readr)
+
+dat <- read_csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv") %>%
+    mutate(Class = factor(classe)) %>%
+    select(-X1, -classe)
+dim(dat)
+```
+
+The data contain 19622 observations of 159 variables. 
+
+# Preprocessing
+
+Several of the 159 variables in this dataset should be removed before model training. We can
+summarise the removed variables in this first step as such:
+
+- The `user_name` variable denotes the participant's name, and cannot be used for prediction
+- The time-related variables `raw_timestamp_part_1`, `raw_timestamp_part_2` and `cvtd_timestamp`
+- `new_window` is a binary factor variable recording whether a window is new or not
+- `num_window` denotes the window number and has a linear relationship with row number in the data
+
+```{r}
+dat <- dat %>%
+    select(-c('user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window'))
+```
+
+Next, variables with more than 10% `NA` values were removed. This represented a significant
+compression of data, leading to 53 remaining variables.
+
+```{r}
+dat <- dat[, colSums(is.na(dat)) / nrow(dat) < .9]
+```
+
+# Feature selection
+
+## Parallel processing
+
+The cleaned dataset contains over 19000 observations of 53 variables. Constructing
+predictive models (e.g., random forest) for this dataset may be computationally
+expensive, and thus, we set up parallel processing to utilise available CPUs. 
+
+```{r message=FALSE}
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 2) 
+registerDoParallel(cluster)
+```
+
+## Feature removal
+
+With high-dimensional data such as these, we may get better model performance by
+reducing the number of predictor variables. One consideration to take into account
+is the presence of highly colinear variables. To identify such variables, we
+construct a correlation matrix (after removing the `Class` outcome variable).
+We use caret's `findCorrelation` function, with a correlation cutoff of 0.8.
+
+Thirteen variables were found to be highly colinear using this threshold, and were
+removed from the dataset.
+
+```{r}
+set.seed(10)
+correlation_matrix <- cor(select(dat, -Class))
+highly_correlated <- findCorrelation(correlation_matrix, cutoff = 0.8)
+dat <- dat[, -highly_correlated]
+```
+
+## Dataset splitting
+
+At this point, we have a relatively clean dataset that can be split into
+training and test sets. We use a ratio of 7:3 for this partition.
+
+```{r}
+inTrain <- createDataPartition(dat$Class, p=0.7, list=FALSE)
+training <- dat[inTrain,]
+testing <- dat[-inTrain,]
+```
+
+# Initial modelling
+
+Next, we construct a random forest model of the training data. The outcome
+variable `Class` is predicted using all the remaining variables. Before running
+the algorithm, we make a call to caret's `trainControl`, specifying a set of
+parameters to be supplied to the `train` function. We set the training method
+to use **ten-fold cross-validation**, and allow parallel processing.
+
+```{r}
+train_params <- trainControl(
+    method = "cv",
+    number = 10,
+    allowParallel = TRUE)
+```
+
+We then run our random forest model. As shown below, the resampling was done using
+10-fold cross-validation, with sample sizes approximately *n* = 12363.
+
+```{r cache=TRUE}
+naive_model <- train(
+    Class ~ .,
+    method = "rf",
+    data = training,
+    trControl = train_params)
+
+naive_model
+```
+
+At this point, we can check the accuracy of our model on the training set. The summary
+of the confusion matrix is shown below. Our in-sample error is 0% (i.e., our accuracy
+on the training set is 100%). Of course, the out-of-sample error is likely to be non-zero.
+
+```{r}
+confusionMatrix(training$Class, predict(naive_model, training))
+```
+
+To reiterate, the current model is able to predict the training data with 100% accuracy;
+of course, it's likely that we have over-fitted the model to some extent, and therefore
+we would expect our out-of-sample error to be greater than our measured in-sample error.
+
+# Model refinement
+
+Given that our data are still relatively high-dimensional, it's not unreasonable
+to wonder whether we can maintain a high level of predictive accuracy with fewer variables,
+leading to lower computational requirements and possibly better interpretability. 
+A plot of variable importance to the model is shown below, and reveals that a handful
+of variables, including `yaw_belt`, `pitch_forearm`, and two axes of `magnet_dumbbell`
+contribute a large amount to the model.
+
+```{r}
+importance <- varImp(naive_model)
+plot(importance)
+```
+
+Given this information, we will arbitrarily select the top twenty most important
+variables in the current model, and use those to train the next iteration of the model.
+
+```{r cache=TRUE}
+importance$importance$Variable <- row.names(importance$importance)
+new_vars <- importance$importance %>% arrange(desc(Overall)) %>% slice(1:20) %>% select(Variable)
+training_refined <- training %>%
+    select(new_vars$Variable, Class)
+
+new_model <- train(
+    Class ~ .,
+    method = "rf",
+    data = training_refined,
+    trControl = train_params)
+```
+
+The new model maintains the accuracy of the previous model on the training set.
+Now we can compare the accuracies of the refined model and the initial model on the
+test set.
+
+```{r}
+confusionMatrix(testing$Class, predict(new_model, testing))
+```
+
+We observe an overall accuracy of just under 99%, with sensitivity and specificity for `Class` =
+Class A (i.e., the "correct" form of the exercise) both over 99%.
+
+The **out-of-sample error** for this model, based on predicting the test set, is `1 - 0.9884 = 1.16%`.     
+
+# Validation and prediction
+
+Finally, we make the predictions on our validation (or 'test') data. These data contain
+twenty observations that we are required to predict. We read in the data,
+and select only those variables that are specified in the model. Finally, we make our
+predictions for the test set:
+
+```{r warning=FALSE, message=FALSE}
+validation <- read_csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv") %>%
+    select(new_vars$Variable)
+test_predictions <- predict(new_model, validation)
+test_predictions
+```
+
+```{r}
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+# Conclusion
+
+The random forest classification model used here was able to predict the correct class with 
+an overall accuracy of just under 99%. While the initial model may provide slightly better 
+sensitivity and specificity, the refined model with fewer variables is quicker to run,
+possibly more interpretable, and provides almost as good predictive power. 
+
+# References
+
+## Data
+
+The dataset used in this report is licensed under the Creative Commons licence
+(CC BY-SA), and is cited below:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity
+Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference
+in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+## Parallel processing
+
+Len Greski is thanked for his discussion on parallel processing for this specific problem,
+found at the below link:
+
+https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md

@@ -1,0 +1,6 @@
+# RPubs
+
+- can publish Rmd and knitr documents online
+- after knitting in RStudio, on the html output, there's a button at the top
+  'Publish'
+- can publish directly to RPubs from there

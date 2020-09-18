@@ -1,0 +1,73 @@
+# Caching computations
+
+- Store results of code in a database (i.e., cache them)
+
+## cacher package for R
+- evaluates code written in files and stores intermediate results in a key-value
+  database
+- R expressions are given SHA-1 hash values so that changes can be tracked and
+  code reevaluated if necessary
+- 'cacher packages' can be built for distribution
+- others can 'clone' an analysis and evaluate subsets of code or inspect data
+  objects
+
+## Using cacher as an author
+1. parse the R source file; create the necessary cache directories and
+   subdirectories
+2. cycle through each expression in the source file:
+    - if an extression has never been evaluated, evaluate it and store any
+      resulting R objects in the cache database
+    - if a cached result exists, lazy-load the results from the cache database
+      and move to the next expression
+    - if an expression does not create any R objects (i.e., there is nothing to
+      cache), add the expression to the list of expressions where evaluation
+      needs to be forced
+    - write out metadata for this expression to the metadata file
+
+- the ```cachepackage``` function creates a ```cacher``` package storing
+    - source file
+    - cached data objects
+    - metadata
+- package file is zipped and can be distributed
+- readers can unzip the file and immediately investigate its contents via
+  ```cacher``` package
+
+## Using cacher as reader
+
+```{r}
+library(cacher)
+clonecache(id = "...")
+showfiles()
+sourcefile('top20.R') # e.g.
+```
+
+## Cloning an analysis
+- local directories created
+- source code files and metadata are downloaded
+- data objects are not downloaded by default
+- references to data objects and loaded and corresponding data can be lazy-loaded on demand
+
+### tracing code backwards
+```{r}
+objectcode(data)
+```
+## Running code
+- the runcode function executes code in the source file
+- by deafult, expressions that result in an object being created are not run and the results objects are lazy loaded into the workspace
+- expressions not results in objects are evaluated
+
+## Checking code and objects
+- the checkcode function evaluates all expressions from scratch (no lazy loading)
+- results of evaluation are checked against stored results to see if the results are the same as what the author calculated (setting rng seeds is critical)
+- the integrity of data objects can be verified with the ```checkobjects``` function to check for possible corruption of data (e.g., in transit)
+
+## Inspecting data objects
+```{r}
+loadcache()
+ls()
+```
+
+## Cacher summary
+- the ```cacher``` package can be used by authors to create cache packages from data analyses for distribution
+- readers can use the cacher package to inspect others' data analyses by examining cached computations
+- cacher is mindful of readers' resources and efficiently loads only those data objects that are needed
